@@ -4,14 +4,20 @@
  *
  * Reads the answers from the URL (q1..q6), then:
  *   1. Toggles .result-positive / .result-negative inside each [card] element.
- *   2. Fills [result="score"] with the total score (sum of the points in q1..q6).
+ *   2. Fills [result="score"] with the POSITIVE-BLOCK count (0..6): one point
+ *      per block that comes out positive.
  *   3. Fills [result="title"] with "LOOKING GOOD" or "YOUR EXIT PLAN STARTS HERE."
- *   4. Injects Score + Outcome as hidden fields into the native contact form,
- *      so they get recorded with the Webflow submission.
+ *   4. Injects Score (weighted total, 0..17) + Outcome (HIGH/MED/LOW/DQ) as
+ *      hidden fields into the native contact form, so they get recorded with
+ *      the Webflow submission.
  *   5. Removes the answers from the URL (keeps only the path).
  *
+ * Two different scores:
+ *   - blockScore  (0..6):  how many blocks are positive -> shown in [result="score"].
+ *   - weightedScore (0..17): sum of the points encoded in each value -> sent to
+ *                            the form and used to decide the Outcome (>=11 HIGH).
+ *
  * Each answer value encodes question-answer-points, e.g. "1-5-0" = Q1, option 5, 0 pts.
- * Max possible total = 5 + 2 + 5 + 2 + 1 + 2 = 17.
  *
  * Cards are matched by DOM order: the first [card] is Q1, the second is Q2, etc.
  * Place before </body> on the /calculator-results page (or host via jsDelivr).
@@ -37,6 +43,11 @@
   var CONTACT_FORM_ID = "wf-form-Calculator-Results-Form";
   var SCORE_FIELD = "Score";
   var OUTCOME_FIELD = "Outcome";
+
+  // True when an answer value shows the negative card
+  function isNegativeValue(key, value) {
+    return !!value && NEGATIVE[key] && NEGATIVE[key].indexOf(value) !== -1;
+  }
 
   // Finds a form field by name, creating a hidden one if it doesn't exist
   function setHiddenField(form, name, value) {
@@ -81,7 +92,7 @@
       var value = answers[key];
       if (!value || !NEGATIVE[key]) return;
 
-      var isNegative = NEGATIVE[key].indexOf(value) !== -1;
+      var isNegative = isNegativeValue(key, value);
       var positiveEl = card.querySelector(".result-positive");
       var negativeEl = card.querySelector(".result-negative");
 
@@ -91,28 +102,35 @@
       if (negativeEl) negativeEl.style.display = isNegative ? "flex" : "none";
     });
 
-    // 2) Total score: sum of the 3rd number of q1..q6
-    var total = Object.keys(answers).reduce(function (sum, key) {
+    // 2a) Block score (0..6): one point per positive block -> [result="score"]
+    var blockScore = Object.keys(answers).reduce(function (count, key) {
+      var value = answers[key];
+      if (!value) return count;
+      return count + (isNegativeValue(key, value) ? 0 : 1);
+    }, 0);
+
+    document.querySelectorAll('[result="score"]').forEach(function (el) {
+      el.textContent = blockScore;
+    });
+
+    // 2b) Weighted score (0..17): sum of the 3rd number of each value
+    var weightedScore = Object.keys(answers).reduce(function (sum, key) {
       var value = answers[key];
       if (!value) return sum;
       var points = Number(value.split("-")[2]);
       return sum + (isNaN(points) ? 0 : points);
     }, 0);
 
-    document.querySelectorAll('[result="score"]').forEach(function (el) {
-      el.textContent = total;
-    });
-
-    // 3) Outcome / title — priority order
+    // 3) Outcome / title — priority order (uses the weighted score)
     var outcome;
     if (answers.q1 && answers.q1 !== "1-5-0" &&
         (answers.q3 === "3-1-5" || answers.q3 === "3-2-5")) {
       outcome = "HIGH"; // 1) auto -> always wins, ignores DQ and score
     } else if (answers.q4 === "4-2-0") {
       outcome = "DQ"; // 2) DQ
-    } else if (total >= 11) {
+    } else if (weightedScore >= 11) {
       outcome = "HIGH"; // 3) score branch
-    } else if (total >= 7) {
+    } else if (weightedScore >= 7) {
       outcome = "MED";
     } else {
       outcome = "LOW";
@@ -131,10 +149,10 @@
     //   body[data-outcome="HIGH"] { ... }
     document.body.setAttribute("data-outcome", outcome);
 
-    // 4) Pass Score + Outcome to the native contact form on this page
+    // 4) Pass the weighted Score + Outcome to the native contact form
     var contactForm = document.getElementById(CONTACT_FORM_ID);
     if (contactForm) {
-      setHiddenField(contactForm, SCORE_FIELD, String(total));
+      setHiddenField(contactForm, SCORE_FIELD, String(weightedScore));
       setHiddenField(contactForm, OUTCOME_FIELD, outcome);
     }
 
@@ -145,13 +163,15 @@
         return {
           question: key,
           value: value || "(empty)",
-          points: value ? Number(value.split("-")[2]) : null
+          points: value ? Number(value.split("-")[2]) : null,
+          card: value ? (isNegativeValue(key, value) ? "negative" : "positive") : null
         };
       });
       console.group("[Calculator results]");
       console.log("Answers:", answers);
       console.table(breakdown);
-      console.log("Total score:", total, "/ 17 max");
+      console.log("Block score (page):", blockScore, "/ 6");
+      console.log("Weighted score (form):", weightedScore, "/ 17");
       console.log("Outcome:", outcome, "| Title:", title);
       console.groupEnd();
     }
