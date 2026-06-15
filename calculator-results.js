@@ -85,9 +85,10 @@
       var positiveEl = card.querySelector(".result-positive");
       var negativeEl = card.querySelector(".result-negative");
 
-      // "" restores the element's default display from the Webflow stylesheet
-      if (positiveEl) positiveEl.style.display = isNegative ? "none" : "";
-      if (negativeEl) negativeEl.style.display = isNegative ? "" : "none";
+      // Active card -> flex. Negatives are display:none by default in the
+      // Webflow stylesheet, so the shown one must be set explicitly.
+      if (positiveEl) positiveEl.style.display = isNegative ? "none" : "flex";
+      if (negativeEl) negativeEl.style.display = isNegative ? "flex" : "none";
     });
 
     // 2) Total score: sum of the 3rd number of q1..q6
