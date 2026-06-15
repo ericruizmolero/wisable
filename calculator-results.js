@@ -11,12 +11,16 @@
  *   5. Removes the answers from the URL (keeps only the path).
  *
  * Each answer value encodes question-answer-points, e.g. "1-5-0" = Q1, option 5, 0 pts.
+ * Max possible total = 5 + 2 + 5 + 2 + 1 + 2 = 17.
  *
  * Cards are matched by DOM order: the first [card] is Q1, the second is Q2, etc.
  * Place before </body> on the /calculator-results page (or host via jsDelivr).
  */
 (function () {
   "use strict";
+
+  // Set to false in production to silence the console output
+  var DEBUG = true;
 
   // Values that should show the NEGATIVE card (from the scoring doc).
   // Everything not listed here shows the POSITIVE card.
@@ -65,6 +69,7 @@
       return !!answers[k];
     });
     if (!hasAnswers) {
+      if (DEBUG) console.warn("[Calculator results] No answers in URL.");
       // window.location.href = "/calculator";
       return;
     }
@@ -130,6 +135,24 @@
     if (contactForm) {
       setHiddenField(contactForm, SCORE_FIELD, String(total));
       setHiddenField(contactForm, OUTCOME_FIELD, outcome);
+    }
+
+    // --- Debug: per-question breakdown so you can verify the numbers ---
+    if (DEBUG) {
+      var breakdown = Object.keys(answers).map(function (key) {
+        var value = answers[key];
+        return {
+          question: key,
+          value: value || "(empty)",
+          points: value ? Number(value.split("-")[2]) : null
+        };
+      });
+      console.group("[Calculator results]");
+      console.log("Answers:", answers);
+      console.table(breakdown);
+      console.log("Total score:", total, "/ 17 max");
+      console.log("Outcome:", outcome, "| Title:", title);
+      console.groupEnd();
     }
 
     // 5) Clean the answers out of the URL (keeps the path, no reload)
