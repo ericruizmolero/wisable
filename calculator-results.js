@@ -176,7 +176,7 @@
     }
 
     var title = outcome === "HIGH"
-      ? "LOOKING GOOD"
+      ? "LOOKING GOOD!"
       : "YOUR EXIT PLAN STARTS HERE.";
 
     document.querySelectorAll('[result="title"]').forEach(function (el) {
