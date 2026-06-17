@@ -4,13 +4,13 @@
  *
  * Reads the answers from the URL (q1..q6), then:
  *   1. Toggles .result-positive / .result-negative inside each [card] element.
- *   2. Fills [result="score"] with the POSITIVE-BLOCK count (0..6): one point
- *      per block that comes out positive.
- *   3. Fills [result="title"] with "LOOKING GOOD" or "YOUR EXIT PLAN STARTS HERE."
- *   4. Injects Score (weighted total, 0..17) + Outcome (HIGH/MED/LOW/DQ) as
- *      hidden fields into the native contact form, so they get recorded with
- *      the Webflow submission.
- *   5. Removes the answers from the URL (keeps only the path).
+ *   2. Reorders the cards so the negative (yellow) ones sit above the positive
+ *      (green) ones, keeping the spacers in place.
+ *   3. Fills [result="score"] with the POSITIVE-BLOCK count (0..6).
+ *   4. Fills [result="title"] with "LOOKING GOOD" or "YOUR EXIT PLAN STARTS HERE."
+ *   5. Injects Score (weighted total, 0..17) + Outcome (HIGH/MED/LOW/DQ) as
+ *      hidden fields into the native contact form.
+ *   6. Removes the answers from the URL (keeps only the path).
  *
  * Two different scores:
  *   - blockScore  (0..6):  how many blocks are positive -> shown in [result="score"].
@@ -20,6 +20,7 @@
  * Each answer value encodes question-answer-points, e.g. "1-5-0" = Q1, option 5, 0 pts.
  *
  * Cards are matched by DOM order: the first [card] is Q1, the second is Q2, etc.
+ * They must be direct siblings of the same container (with spacers between them).
  * Place before </body> on the /calculator-results page (or host via jsDelivr).
  */
 (function () {
@@ -62,6 +63,36 @@
     field.value = value;
   }
 
+  // Reorders cards in place: negatives first, positives after (both stable).
+  // Spacers between cards are left untouched by reusing each card's slot via
+  // placeholder comment nodes.
+  function reorderCards(cards, negativeFlags) {
+    if (cards.length < 2) return;
+    var parent = cards[0].parentNode;
+    if (!parent) return;
+
+    var negatives = [];
+    var positives = [];
+    cards.forEach(function (card, i) {
+      (negativeFlags[i] ? negatives : positives).push(card);
+    });
+    var ordered = negatives.concat(positives);
+
+    // Mark each original slot, then detach the cards
+    var slots = cards.map(function (card) {
+      var ph = document.createComment("card-slot");
+      parent.insertBefore(ph, card);
+      parent.removeChild(card);
+      return ph;
+    });
+
+    // Drop the cards back into the slots in the new order
+    slots.forEach(function (ph, i) {
+      parent.insertBefore(ordered[i], ph);
+      parent.removeChild(ph);
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var params = new URLSearchParams(window.location.search);
 
@@ -85,24 +116,32 @@
       return;
     }
 
-    // 1) Cards: show positive or negative (cards are in DOM order Q1..Q6)
-    var cards = document.querySelectorAll("[card]");
-    cards.forEach(function (card, index) {
+    // 1) Cards: toggle positive/negative and remember which are negative.
+    //    Cards are in DOM order Q1..Q6.
+    var cardEls = Array.prototype.slice.call(document.querySelectorAll("[card]"));
+    var cardIsNegative = [];
+
+    cardEls.forEach(function (card, index) {
       var key = "q" + (index + 1);
       var value = answers[key];
-      if (!value || !NEGATIVE[key]) return;
+      var neg = isNegativeValue(key, value);
+      cardIsNegative[index] = neg;
 
-      var isNegative = isNegativeValue(key, value);
+      if (!value) return; // nothing to toggle without an answer
+
       var positiveEl = card.querySelector(".result-positive");
       var negativeEl = card.querySelector(".result-negative");
 
       // Active card -> flex. Negatives are display:none by default in the
       // Webflow stylesheet, so the shown one must be set explicitly.
-      if (positiveEl) positiveEl.style.display = isNegative ? "none" : "flex";
-      if (negativeEl) negativeEl.style.display = isNegative ? "flex" : "none";
+      if (positiveEl) positiveEl.style.display = neg ? "none" : "flex";
+      if (negativeEl) negativeEl.style.display = neg ? "flex" : "none";
     });
 
-    // 2a) Block score (0..6): one point per positive block -> [result="score"]
+    // 2) Reorder: yellow (negative) cards above green (positive) ones
+    reorderCards(cardEls, cardIsNegative);
+
+    // 3) Block score (0..6): one point per positive block -> [result="score"]
     var blockScore = Object.keys(answers).reduce(function (count, key) {
       var value = answers[key];
       if (!value) return count;
@@ -113,7 +152,7 @@
       el.textContent = blockScore;
     });
 
-    // 2b) Weighted score (0..17): sum of the 3rd number of each value
+    // 4a) Weighted score (0..17): sum of the 3rd number of each value
     var weightedScore = Object.keys(answers).reduce(function (sum, key) {
       var value = answers[key];
       if (!value) return sum;
@@ -121,7 +160,7 @@
       return sum + (isNaN(points) ? 0 : points);
     }, 0);
 
-    // 3) Outcome / title — priority order (uses the weighted score)
+    // 4b) Outcome / title — priority order (uses the weighted score)
     var outcome;
     if (answers.q1 && answers.q1 !== "1-5-0" &&
         (answers.q3 === "3-1-5" || answers.q3 === "3-2-5")) {
@@ -137,7 +176,7 @@
     }
 
     var title = outcome === "HIGH"
-      ? "LOOKING GOOD!"
+      ? "LOOKING GOOD"
       : "YOUR EXIT PLAN STARTS HERE.";
 
     document.querySelectorAll('[result="title"]').forEach(function (el) {
@@ -149,7 +188,7 @@
     //   body[data-outcome="HIGH"] { ... }
     document.body.setAttribute("data-outcome", outcome);
 
-    // 4) Pass the weighted Score + Outcome to the native contact form
+    // 5) Pass the weighted Score + Outcome to the native contact form
     var contactForm = document.getElementById(CONTACT_FORM_ID);
     if (contactForm) {
       setHiddenField(contactForm, SCORE_FIELD, String(weightedScore));
@@ -176,7 +215,7 @@
       console.groupEnd();
     }
 
-    // 5) Clean the answers out of the URL (keeps the path, no reload)
+    // 6) Clean the answers out of the URL (keeps the path, no reload)
     if (window.history && window.history.replaceState) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
