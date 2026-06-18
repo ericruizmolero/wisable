@@ -7,10 +7,12 @@
  *   2. Reorders the cards so the negative (yellow) ones sit above the positive
  *      (green) ones, keeping the spacers in place.
  *   3. Fills [result="score"] with the POSITIVE-BLOCK count (0..6).
- *   4. Fills [result="title"] with "LOOKING GOOD" or "YOUR EXIT PLAN STARTS HERE."
- *   5. Injects Score (weighted total, 0..17) + Outcome (HIGH/MED/LOW/DQ) as
+ *   4. Fills [result="body"] with the intro paragraph that matches the result
+ *      ("all strong" when every bullet is green, "here's what to work on" otherwise).
+ *   5. Fills [result="title"] with "LOOKING GOOD!" or "YOUR EXIT PLAN STARTS HERE."
+ *   6. Injects Score (weighted total, 0..17) + Outcome (HIGH/MED/LOW/DQ) as
  *      hidden fields into the native contact form.
- *   6. Removes the answers from the URL (keeps only the path).
+ *   7. Removes the answers from the URL (keeps only the path).
  *
  * Two different scores:
  *   - blockScore  (0..6):  how many blocks are positive -> shown in [result="score"].
@@ -44,6 +46,10 @@
   var CONTACT_FORM_ID = "wf-form-Calculator-Results-Form";
   var SCORE_FIELD = "Score";
   var OUTCOME_FIELD = "Outcome";
+
+  // Body copy variants for [result="body"]
+  var BODY_ALL_STRONG = "Every great exit starts with preparation. Your readiness signals are all strong.";
+  var BODY_WORK = "Every great exit starts with preparation. Here's what to work on.";
 
   // True when an answer value shows the negative card
   function isNegativeValue(key, value) {
@@ -152,7 +158,13 @@
       el.textContent = blockScore;
     });
 
-    // 4a) Weighted score (0..17): sum of the 3rd number of each value
+    // 4) Body copy: depends on whether every bullet is green -> [result="body"]
+    var bodyCopy = blockScore === 6 ? BODY_ALL_STRONG : BODY_WORK;
+    document.querySelectorAll('[result="body"]').forEach(function (el) {
+      el.textContent = bodyCopy;
+    });
+
+    // 5a) Weighted score (0..17): sum of the 3rd number of each value
     var weightedScore = Object.keys(answers).reduce(function (sum, key) {
       var value = answers[key];
       if (!value) return sum;
@@ -160,7 +172,7 @@
       return sum + (isNaN(points) ? 0 : points);
     }, 0);
 
-    // 4b) Outcome / title — priority order (uses the weighted score)
+    // 5b) Outcome / title — priority order (uses the weighted score)
     var outcome;
     if (answers.q1 && answers.q1 !== "1-5-0" &&
         (answers.q3 === "3-1-5" || answers.q3 === "3-2-5")) {
@@ -188,7 +200,7 @@
     //   body[data-outcome="HIGH"] { ... }
     document.body.setAttribute("data-outcome", outcome);
 
-    // 5) Pass the weighted Score + Outcome to the native contact form
+    // 6) Pass the weighted Score + Outcome to the native contact form
     var contactForm = document.getElementById(CONTACT_FORM_ID);
     if (contactForm) {
       setHiddenField(contactForm, SCORE_FIELD, String(weightedScore));
@@ -215,7 +227,7 @@
       console.groupEnd();
     }
 
-    // 6) Clean the answers out of the URL (keeps the path, no reload)
+    // 7) Clean the answers out of the URL (keeps the path, no reload)
     if (window.history && window.history.replaceState) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
