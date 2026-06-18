@@ -2,7 +2,7 @@
  * treseiscero — Calculator results
  * Page: /calculator-results
  *
- * Reads the answers from the URL (q1..q6), then:
+ * Reads the answers from the URL (q1..q7), then:
  *   1. Toggles .result-positive / .result-negative inside each [card] element.
  *   2. Reorders the cards so the negative (yellow) ones sit above the positive
  *      (green) ones, keeping the spacers in place.
@@ -10,8 +10,8 @@
  *   4. Fills [result="body"] with the intro paragraph that matches the result
  *      ("all strong" when every bullet is green, "here's what to work on" otherwise).
  *   5. Fills [result="title"] with "LOOKING GOOD!" or "YOUR EXIT PLAN STARTS HERE."
- *   6. Injects Score (weighted total, 0..17) + Outcome (HIGH/MED/LOW/DQ) as
- *      hidden fields into the native contact form.
+ *   6. Injects Score (0..17), Outcome (HIGH/MED/LOW/DQ) and the Selling reason
+ *      (Q7, not scored) as hidden fields into the native contact form.
  *   7. Removes the answers from the URL (keeps only the path).
  *
  * Two different scores:
@@ -19,7 +19,10 @@
  *   - weightedScore (0..17): sum of the points encoded in each value -> sent to
  *                            the form and used to decide the Outcome (>=11 HIGH).
  *
- * Each answer value encodes question-answer-points, e.g. "1-5-0" = Q1, option 5, 0 pts.
+ * Q7 ("what's prompting you to sell") is NOT scored: it is kept apart from the
+ * scored answers and only forwarded to the form.
+ *
+ * Each scored value encodes question-answer-points, e.g. "1-5-0" = Q1, option 5, 0 pts.
  *
  * Cards are matched by DOM order: the first [card] is Q1, the second is Q2, etc.
  * They must be direct siblings of the same container (with spacers between them).
@@ -46,6 +49,7 @@
   var CONTACT_FORM_ID = "wf-form-Calculator-Results-Form";
   var SCORE_FIELD = "Score";
   var OUTCOME_FIELD = "Outcome";
+  var REASON_FIELD = "What-s-prompting-you-to-think-about-selling"; // hidden input that stores the Q7 answer
 
   // Body copy variants for [result="body"]
   var BODY_ALL_STRONG = "Every great exit starts with preparation. Your readiness signals are all strong.";
@@ -110,6 +114,9 @@
       q5: params.get("q5"),
       q6: params.get("q6")
     };
+
+    // Q7 is not scored — keep it apart from the scored answers
+    var sellingReason = params.get("q7");
 
     // No answers in the URL (e.g. direct visit) -> do nothing.
     // Uncomment the redirect to force users back to the form instead.
@@ -200,11 +207,12 @@
     //   body[data-outcome="HIGH"] { ... }
     document.body.setAttribute("data-outcome", outcome);
 
-    // 6) Pass the weighted Score + Outcome to the native contact form
+    // 6) Pass Score + Outcome + Selling reason (Q7) to the native contact form
     var contactForm = document.getElementById(CONTACT_FORM_ID);
     if (contactForm) {
       setHiddenField(contactForm, SCORE_FIELD, String(weightedScore));
       setHiddenField(contactForm, OUTCOME_FIELD, outcome);
+      if (sellingReason) setHiddenField(contactForm, REASON_FIELD, sellingReason);
     }
 
     // --- Debug: per-question breakdown so you can verify the numbers ---
@@ -223,6 +231,7 @@
       console.table(breakdown);
       console.log("Block score (page):", blockScore, "/ 6");
       console.log("Weighted score (form):", weightedScore, "/ 17");
+      console.log("Selling reason (form):", sellingReason || "(none)");
       console.log("Outcome:", outcome, "| Title:", title);
       console.groupEnd();
     }
