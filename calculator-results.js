@@ -10,8 +10,9 @@
  *   4. Fills [result="body"] with the intro paragraph that matches the result
  *      ("all strong" when every bullet is green, "here's what to work on" otherwise).
  *   5. Fills [result="title"] with "LOOKING GOOD!" or "YOUR EXIT PLAN STARTS HERE."
- *   6. Injects Score (0..17), Outcome (HIGH/MED/LOW/DQ) and the Selling reason
- *      (Q7, not scored) as hidden fields into the native contact form.
+ *   6. Injects into the native contact form: Score (0..17), Outcome (HIGH/MED/LOW/DQ),
+ *      and the readable answer text of every question (Q1..Q7), so they all show up
+ *      in the Webflow form submissions.
  *   7. Removes the answers from the URL (keeps only the path).
  *
  * Two different scores:
@@ -49,7 +50,45 @@
   var CONTACT_FORM_ID = "wf-form-Calculator-Results-Form";
   var SCORE_FIELD = "Score";
   var OUTCOME_FIELD = "Outcome";
-  var REASON_FIELD = "What-s-prompting-you-to-think-about-selling"; // hidden input that stores the Q7 answer
+  var REASON_FIELD = "What-s-prompting-you-to-think-about-selling"; // Q7 hidden input
+
+  // Hidden input names (in the results contact form) for the Q1..Q6 answers
+  var ANSWER_FIELDS = {
+    q1: "How-much-revenue-did-you-earn-last-year",
+    q2: "How-has-your-revenue-moved",
+    q3: "Roughly-what-s-your-annual-profit",
+    q4: "How-are-your-financials-looking",
+    q5: "Could-the-business-run-without-you-for-a-month",
+    q6: "How-spread-out-is-your-customer-base"
+  };
+
+  // Value code -> human-readable answer label (for the form submissions)
+  var ANSWER_LABELS = {
+    "1-1-5": "$5M +",
+    "1-2-5": "$3M - 4.999M",
+    "1-3-5": "$1.5M - 2.999M",
+    "1-4-4": "$750K - $1.499M",
+    "1-5-0": "Under $750K",
+    "2-1-2": "Growing year over year",
+    "2-2-1": "Consistent with little to no change",
+    "2-3-1": "Fluctuates up and down",
+    "2-4-0": "Shrinking year over year",
+    "3-1-5": "$200K +",
+    "3-2-5": "$100K - 199K",
+    "3-3-1": "$50K - 99K",
+    "3-4-0": "Under $50k",
+    "4-1-2": "3+ years",
+    "4-2-0": "1-2 years",
+    "4-3-1": "We have 3+ years of records, but they could be cleaner",
+    "4-4-1": "I'm not sure",
+    "5-1-1": "Yes",
+    "5-2-1": "Mostly",
+    "5-3-0": "Not yet",
+    "6-1-2": "Spread out. No single client is too big",
+    "6-2-2": "Mostly spread, one or two are larger",
+    "6-3-1": "A few clients bring in most of the money",
+    "6-4-1": "One main client"
+  };
 
   // Body copy variants for [result="body"]
   var BODY_ALL_STRONG = "Every great exit starts with preparation. Your readiness signals are all strong.";
@@ -58,6 +97,11 @@
   // True when an answer value shows the negative card
   function isNegativeValue(key, value) {
     return !!value && NEGATIVE[key] && NEGATIVE[key].indexOf(value) !== -1;
+  }
+
+  // Readable label for a value code (falls back to the raw code if unmapped)
+  function labelFor(value) {
+    return ANSWER_LABELS[value] || value;
   }
 
   // Finds a form field by name, creating a hidden one if it doesn't exist
@@ -207,12 +251,19 @@
     //   body[data-outcome="HIGH"] { ... }
     document.body.setAttribute("data-outcome", outcome);
 
-    // 6) Pass Score + Outcome + Selling reason (Q7) to the native contact form
+    // 6) Feed the native contact form: score, outcome and every answer (readable)
     var contactForm = document.getElementById(CONTACT_FORM_ID);
     if (contactForm) {
       setHiddenField(contactForm, SCORE_FIELD, String(weightedScore));
       setHiddenField(contactForm, OUTCOME_FIELD, outcome);
       if (sellingReason) setHiddenField(contactForm, REASON_FIELD, sellingReason);
+
+      // Q1..Q6 answers as readable labels
+      Object.keys(ANSWER_FIELDS).forEach(function (key) {
+        var value = answers[key];
+        if (!value) return;
+        setHiddenField(contactForm, ANSWER_FIELDS[key], labelFor(value));
+      });
     }
 
     // --- Debug: per-question breakdown so you can verify the numbers ---
@@ -222,6 +273,7 @@
         return {
           question: key,
           value: value || "(empty)",
+          label: value ? labelFor(value) : null,
           points: value ? Number(value.split("-")[2]) : null,
           card: value ? (isNegativeValue(key, value) ? "negative" : "positive") : null
         };
