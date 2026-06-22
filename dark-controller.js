@@ -1,4 +1,4 @@
-<script>
+
   // Dark Body Variant Controller
   (function () {
     'use strict';
@@ -149,4 +149,3 @@
 
     window.addEventListener('DOMContentLoaded', init);
   })();
-</script>
