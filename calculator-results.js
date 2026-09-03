@@ -239,8 +239,8 @@
     }
 
     var title = outcome === "HIGH"
-      ? "LOOKING GOOD!"
-      : "YOUR EXIT PLAN STARTS HERE.";
+      ? "Looking good!"
+      : "Your exit plan starts here";
 
     document.querySelectorAll('[result="title"]').forEach(function (el) {
       el.textContent = title;
