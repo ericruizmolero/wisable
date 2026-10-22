@@ -64,11 +64,12 @@
 
   // Value code -> human-readable answer label (for the form submissions)
   var ANSWER_LABELS = {
-    "1-1-5": "$5M +",
-    "1-2-5": "$3M - 4.999M",
-    "1-3-5": "$1.5M - 2.999M",
-    "1-4-4": "$750K - $1.499M",
-    "1-5-0": "Under $750K",
+    // Q1 labels match the revenue buckets used on every other form (Oct 2026)
+    "1-1-5": "$5 million +",
+    "1-2-5": "$3 million - $5 million",
+    "1-3-5": "$2 million - $3 million",
+    "1-4-4": "$1 million - $2 million",
+    "1-5-0": "Under $1 million",
     "2-1-2": "Growing year over year",
     "2-2-1": "Consistent with little to no change",
     "2-3-1": "Fluctuates up and down",
